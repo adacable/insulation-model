@@ -391,32 +391,45 @@ function textColor(hex) {
 // Returns a new array of paths with resolvedLayers — does NOT mutate state.
 
 function resolvePathThicknesses(paths) {
-  const thicknesses = paths.map(p =>
-    p.layers.reduce((s, l) => s + l.thicknessMm, 0)
-  );
-  const maxT = Math.max(...thicknesses, 0);
+  function isVoidMat(materialId) { return getMaterial(materialId).isVoid; }
+  function rigidMm(path) { return path.layers.reduce((s, l) => isVoidMat(l.materialId) ? s : s + l.thicknessMm, 0); }
+  function pathHasVoid(path) { return path.layers.some(l => isVoidMat(l.materialId)); }
 
-  return paths.map((path, i) => {
-    const gap = maxT - thicknesses[i];
-    if (gap === 0) return { ...path, resolvedLayers: path.layers, autoVoidMm: 0 };
+  // Target depth = max of the rigid (void-free) paths.
+  // Void layers are treated as flexible and will shrink or grow to fill.
+  // If ALL paths have voids, fall back to max total thickness.
+  const rigidOnlyPaths = paths.filter(p => !pathHasVoid(p));
+  const target = rigidOnlyPaths.length > 0
+    ? Math.max(...rigidOnlyPaths.map(rigidMm), 0)
+    : Math.max(...paths.map(p => p.layers.reduce((s, l) => s + l.thicknessMm, 0)), 0);
 
+  return paths.map(path => {
     const layers = path.layers.map(l => ({ ...l }));
+    const rigid  = rigidMm(path);
+    const needed = target - rigid; // total void space this path needs
 
-    // Find the last void layer anywhere in the stack (not just at the end)
+    if (!pathHasVoid(path)) {
+      // No void: add auto-void if this path is shorter than target
+      if (needed <= 0) return { ...path, resolvedLayers: layers, autoVoidMm: 0 };
+      layers.push({ id: 'auto-' + uid(), materialId: 'void', thicknessMm: needed, isAuto: true });
+      return { ...path, resolvedLayers: layers, autoVoidMm: needed };
+    }
+
+    // Has void(s): set the last void to whatever remains after rigid layers.
+    // This allows shrinking as well as growing.
     let lastVoidIdx = -1;
     for (let j = layers.length - 1; j >= 0; j--) {
-      if (getMaterial(layers[j].materialId).isVoid) { lastVoidIdx = j; break; }
+      if (isVoidMat(layers[j].materialId)) { lastVoidIdx = j; break; }
     }
 
-    if (lastVoidIdx >= 0) {
-      // Expand existing void
-      layers[lastVoidIdx] = { ...layers[lastVoidIdx], thicknessMm: layers[lastVoidIdx].thicknessMm + gap };
-      return { ...path, resolvedLayers: layers, autoVoidMm: gap, expandedVoid: true };
-    } else {
-      // No void in path — append a new auto void
-      layers.push({ id: 'auto-' + uid(), materialId: 'void', thicknessMm: gap, isAuto: true });
-      return { ...path, resolvedLayers: layers, autoVoidMm: gap, expandedVoid: false };
+    if (needed <= 0) {
+      // Rigid layers already meet or exceed target — collapse void to 0 and warn
+      layers[lastVoidIdx] = { ...layers[lastVoidIdx], thicknessMm: 0 };
+      return { ...path, resolvedLayers: layers, autoVoidMm: 0, overflowing: true };
     }
+
+    layers[lastVoidIdx] = { ...layers[lastVoidIdx], thicknessMm: needed };
+    return { ...path, resolvedLayers: layers, autoVoidMm: 0 };
   });
 }
 
@@ -587,7 +600,8 @@ function renderLayers() {
             <button class="btn-danger" title="Remove layer" onclick="removeLayer(${li})">×</button>
           </div>
           <div class="layer-body">
-            ${hasAutoVoid ? '<div class="warning-msg">Path thicknesses differ — void(s) auto-added to balance.</div>' : ''}
+            ${resolved.some(p => p.autoVoidMm > 0) ? '<div class="warning-msg">Path thicknesses differ — auto-void added to shorter path(s).</div>' : ''}
+            ${resolved.some(p => p.overflowing) ? '<div class="warning-msg">A path\'s rigid layers exceed the target depth — reduce layer thicknesses.</div>' : ''}
             <div class="paths-container">
               ${pathCols}
               <div class="add-path-col">
