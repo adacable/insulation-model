@@ -401,14 +401,19 @@ function resolvePathThicknesses(paths) {
     if (gap === 0) return { ...path, resolvedLayers: path.layers, autoVoidMm: 0 };
 
     const layers = path.layers.map(l => ({ ...l }));
-    const last = layers[layers.length - 1];
 
-    if (last && getMaterial(last.materialId).isVoid) {
-      // Expand existing trailing void
-      layers[layers.length - 1] = { ...last, thicknessMm: last.thicknessMm + gap };
+    // Find the last void layer anywhere in the stack (not just at the end)
+    let lastVoidIdx = -1;
+    for (let j = layers.length - 1; j >= 0; j--) {
+      if (getMaterial(layers[j].materialId).isVoid) { lastVoidIdx = j; break; }
+    }
+
+    if (lastVoidIdx >= 0) {
+      // Expand existing void
+      layers[lastVoidIdx] = { ...layers[lastVoidIdx], thicknessMm: layers[lastVoidIdx].thicknessMm + gap };
       return { ...path, resolvedLayers: layers, autoVoidMm: gap, expandedVoid: true };
     } else {
-      // Append a new auto void
+      // No void in path — append a new auto void
       layers.push({ id: 'auto-' + uid(), materialId: 'void', thicknessMm: gap, isAuto: true });
       return { ...path, resolvedLayers: layers, autoVoidMm: gap, expandedVoid: false };
     }
