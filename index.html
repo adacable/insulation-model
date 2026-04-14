@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>U-Value Calculator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      background: #f0f2f5;
+      color: #1a1a1a;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    #header {
+      background: #1e293b;
+      color: white;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    #header h1 { font-size: 14px; font-weight: 700; letter-spacing: 0.3px; white-space: nowrap; }
+    #structure-name-input {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.25);
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      width: 200px;
+    }
+    #structure-name-input::placeholder { color: rgba(255,255,255,0.4); }
+    #u-value-display {
+      margin-left: auto;
+      background: #475569;
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 14px;
+      white-space: nowrap;
+      transition: background 0.3s;
+    }
+    #u-value-display.good { background: #16a34a; }
+    #u-value-display.ok   { background: #d97706; }
+    #u-value-display.poor { background: #dc2626; }
+
+    /* ── Main layout ── */
+    #main {
+      display: grid;
+      grid-template-columns: 210px 1fr 270px;
+      flex: 1;
+      overflow: hidden;
+      gap: 1px;
+      background: #d1d5db;
+    }
+    .panel {
+      background: white;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .panel-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #6b7280;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    /* ── Materials panel ── */
+    .material-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 5px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .material-item:hover { background: #f9fafb; }
+    .material-swatch {
+      width: 11px; height: 11px;
+      border-radius: 2px;
+      border: 1px solid rgba(0,0,0,0.15);
+      flex-shrink: 0;
+    }
+    .material-k { margin-left: auto; color: #9ca3af; font-size: 11px; white-space: nowrap; }
+
+    .divider { border: none; border-top: 1px solid #e5e7eb; margin: 10px 0; }
+
+    .form-row { margin-bottom: 6px; }
+    .form-row label { display: block; font-size: 11px; color: #6b7280; margin-bottom: 2px; }
+    .form-row input, .form-row select {
+      width: 100%; padding: 4px 6px;
+      border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      padding: 5px 10px; border-radius: 4px; border: none;
+      cursor: pointer; font-size: 12px; font-weight: 500;
+    }
+    .btn:disabled { opacity: 0.4; cursor: default; }
+    .btn-primary { background: #0ea5e9; color: white; }
+    .btn-primary:hover:not(:disabled) { background: #0284c7; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+    .btn-secondary:hover:not(:disabled) { background: #e5e7eb; }
+    .btn-danger { background: none; color: #ef4444; border: none; cursor: pointer; padding: 1px 4px; font-size: 15px; line-height: 1; }
+    .btn-danger:hover { color: #b91c1c; }
+    .btn-icon { background: none; border: none; cursor: pointer; color: #9ca3af; padding: 1px 3px; font-size: 13px; }
+    .btn-icon:hover:not(:disabled) { color: #374151; }
+    .btn-icon:disabled { opacity: 0.25; cursor: default; }
+
+    /* ── Layer stack panel ── */
+    #layer-panel { display: flex; flex-direction: column; }
+    #layer-list { flex: 1; }
+
+    .direction-label {
+      text-align: center; font-size: 11px; color: #9ca3af;
+      padding: 5px; font-style: italic;
+    }
+    .add-layer-row { display: flex; gap: 8px; padding-top: 10px; }
+
+    .layer-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      overflow: hidden;
+    }
+    .layer-card.bridged { border-color: #bfdbfe; }
+
+    .layer-header {
+      display: flex; align-items: center; gap: 5px;
+      padding: 5px 8px;
+      background: #f9fafb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .layer-header.bridged-header { background: #eff6ff; border-bottom-color: #bfdbfe; }
+
+    .layer-type-badge {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: #6b7280;
+      background: #e5e7eb; padding: 1px 5px; border-radius: 3px;
+    }
+    .layer-type-badge.bridged { color: #1d4ed8; background: #dbeafe; }
+
+    .layer-body { padding: 8px; }
+
+    .simple-layer-row { display: flex; align-items: center; gap: 7px; }
+    .simple-layer-row select {
+      flex: 1; padding: 4px 6px;
+      border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px;
+    }
+    .thickness-group { display: flex; align-items: center; gap: 3px; }
+    .thickness-group input {
+      width: 58px; padding: 4px 5px;
+      border: 1px solid #d1d5db; border-radius: 4px;
+      font-size: 12px; text-align: right;
+    }
+    .thickness-group span { font-size: 11px; color: #9ca3af; }
+    .layer-r { font-size: 11px; color: #6b7280; min-width: 64px; text-align: right; white-space: nowrap; }
+
+    /* ── Bridged paths ── */
+    .paths-container { display: flex; gap: 6px; align-items: flex-start; overflow-x: auto; padding-bottom: 2px; }
+    .path-column {
+      flex: 0 0 auto;
+      min-width: 138px;
+      border: 1px solid #e5e7eb;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .path-header {
+      background: #f3f4f6; padding: 4px 7px;
+      display: flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 600; color: #4b5563;
+    }
+    .path-width-input {
+      width: 48px; padding: 2px 4px;
+      border: 1px solid #d1d5db; border-radius: 3px;
+      font-size: 11px; text-align: right;
+    }
+    .path-layers { padding: 5px; }
+    .path-layer-row {
+      display: flex; align-items: center; gap: 3px; margin-bottom: 4px;
+    }
+    .path-layer-row select {
+      flex: 1; min-width: 0; padding: 2px 4px;
+      border: 1px solid #d1d5db; border-radius: 3px; font-size: 11px;
+    }
+    .path-layer-row input {
+      width: 44px; padding: 2px 4px;
+      border: 1px solid #d1d5db; border-radius: 3px;
+      font-size: 11px; text-align: right;
+    }
+    .auto-badge {
+      font-size: 9px; background: #fef3c7; color: #92400e;
+      border: 1px solid #fcd34d; border-radius: 3px;
+      padding: 1px 3px; white-space: nowrap;
+    }
+    .add-path-col { display: flex; align-items: flex-start; padding-top: 2px; }
+    .warning-msg {
+      font-size: 11px; color: #92400e;
+      background: #fef3c7; border: 1px solid #fcd34d;
+      border-radius: 4px; padding: 4px 8px; margin-bottom: 6px;
+    }
+
+    /* ── Section panel ── */
+    #section-panel { display: flex; flex-direction: column; overflow: hidden; }
+    #section-svg-container { flex: 1; overflow-y: auto; padding: 0 12px 8px; }
+    #section-svg { width: 100%; display: block; }
+
+    /* ── R-value breakdown ── */
+    #r-breakdown { padding: 0 12px 12px; flex-shrink: 0; border-top: 1px solid #e5e7eb; }
+    .r-breakdown-title {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 1px; color: #6b7280;
+      padding: 8px 0 6px; border-bottom: 1px solid #e5e7eb; margin-bottom: 4px;
+    }
+    .r-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 11px; color: #6b7280; }
+    .r-row.total { font-weight: 700; color: #111; border-top: 1px solid #e5e7eb; margin-top: 3px; padding-top: 4px; }
+
+    /* ── Footer ── */
+    #footer {
+      background: white; border-top: 1px solid #e5e7eb;
+      padding: 7px 16px;
+      display: flex; align-items: center; gap: 14px;
+      flex-shrink: 0; font-size: 12px;
+    }
+    .footer-group { display: flex; align-items: center; gap: 5px; }
+    .footer-group label { color: #6b7280; }
+    .footer-group input {
+      width: 54px; padding: 3px 6px;
+      border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px;
+    }
+    .footer-sep { flex: 1; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center; color: #9ca3af;
+      padding: 28px 16px; font-size: 12px; line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+<header id="header">
+  <h1>U-Value Calculator</h1>
+  <input type="text" id="structure-name-input" placeholder="Structure name" value="New structure">
+  <span id="u-value-display">U = —</span>
+</header>
+
+<div id="main">
+
+  <!-- ── Materials ── -->
+  <div class="panel" id="materials-panel">
+    <div class="panel-title">Materials</div>
+    <div id="material-list"></div>
+
+    <hr class="divider">
+    <div class="panel-title" style="margin-bottom:8px">Add Custom</div>
+    <div class="form-row">
+      <label>Name</label>
+      <input type="text" id="custom-name" placeholder="e.g. Hempcrete">
+    </div>
+    <div class="form-row">
+      <label>Conductivity (W/mK)</label>
+      <input type="number" id="custom-k" step="0.001" min="0.001" placeholder="0.100">
+    </div>
+    <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+      <input type="color" id="custom-color" value="#aabbcc"
+        style="width:32px;height:28px;padding:1px;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;flex-shrink:0">
+      <button class="btn btn-primary" style="flex:1" onclick="addCustomMaterial()">Add</button>
+    </div>
+  </div>
+
+  <!-- ── Layer stack ── -->
+  <div class="panel" id="layer-panel">
+    <div class="panel-title">Layer Stack</div>
+    <div class="direction-label">&#8212; Outside &#8212;</div>
+    <div id="layer-list"></div>
+    <div class="direction-label">&#8212; Inside &#8212;</div>
+    <div class="add-layer-row">
+      <button class="btn btn-secondary" onclick="addSimpleLayer()">+ Simple layer</button>
+      <button class="btn btn-secondary" onclick="addBridgedLayer()">+ Bridged layer</button>
+    </div>
+  </div>
+
+  <!-- ── Section + breakdown ── -->
+  <div class="panel" id="section-panel">
+    <div style="padding:0 0 8px;flex-shrink:0">
+      <div class="panel-title">Cross Section</div>
+    </div>
+    <div id="section-svg-container">
+      <svg id="section-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div id="r-breakdown"></div>
+  </div>
+
+</div>
+
+<footer id="footer">
+  <div class="footer-group">
+    <label>R<sub>si</sub></label>
+    <input type="number" id="rsi-input" value="0.13" step="0.01" min="0">
+    <span style="color:#9ca3af">m²K/W</span>
+  </div>
+  <div class="footer-group">
+    <label>R<sub>se</sub></label>
+    <input type="number" id="rse-input" value="0.04" step="0.01" min="0">
+    <span style="color:#9ca3af">m²K/W</span>
+  </div>
+  <div class="footer-sep"></div>
+  <button class="btn btn-secondary" onclick="exportJSON()">Export JSON</button>
+  <button class="btn btn-secondary" onclick="document.getElementById('import-file').click()">Import JSON</button>
+  <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(event)">
+</footer>
+
+<script>
+'use strict';
+
+// ─── Built-in materials ───────────────────────────────────────────────────────
+
+const BUILT_IN_MATERIALS = [
+  { id: 'pir',            name: 'PIR insulation',      conductivity: 0.022, color: '#F4D03F' },
+  { id: 'mineral-wool',   name: 'Mineral wool',         conductivity: 0.038, color: '#E59866' },
+  { id: 'rockwool',       name: 'Rockwool',             conductivity: 0.034, color: '#CA8A49' },
+  { id: 'osb',            name: 'OSB',                  conductivity: 0.130, color: '#D7B799' },
+  { id: 'plywood',        name: 'Plywood',              conductivity: 0.130, color: '#C9A87A' },
+  { id: 'cement-board',   name: 'Cement fibreboard',   conductivity: 0.350, color: '#BDC3C7' },
+  { id: 'timber',         name: 'Timber (joist/stud)',  conductivity: 0.130, color: '#8E5B2F' },
+  { id: 'concrete-block', name: 'Concrete block',       conductivity: 1.130, color: '#95A5A6' },
+  { id: 'dense-concrete', name: 'Dense concrete',       conductivity: 1.500, color: '#717D7E' },
+  { id: 'brick',          name: 'Brick',                conductivity: 0.770, color: '#C0392B' },
+  { id: 'plasterboard',   name: 'Plasterboard',         conductivity: 0.250, color: '#ECF0F1' },
+  { id: 'void',           name: 'Void / Air gap',       isVoid: true,        color: '#D6EAF8' },
+];
+
+// ─── State ────────────────────────────────────────────────────────────────────
+
+let state = {
+  customMaterials: [],
+  structure: {
+    name: 'New structure',
+    rsi: 0.13,
+    rse: 0.04,
+    layers: []
+  }
+};
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+function uid() {
+  return Math.random().toString(36).slice(2, 9);
+}
+
+function allMaterials() {
+  return [...BUILT_IN_MATERIALS, ...state.customMaterials];
+}
+
+function getMaterial(id) {
+  return allMaterials().find(m => m.id === id) || BUILT_IN_MATERIALS[0];
+}
+
+function layerR(materialId, thicknessMm) {
+  const mat = getMaterial(materialId);
+  if (mat.isVoid) return 0.18;
+  if (!mat.conductivity || thicknessMm <= 0) return 0;
+  return (thicknessMm / 1000) / mat.conductivity;
+}
+
+// Luminance-based readable text colour over a hex fill
+function textColor(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) > 155 ? '#374151' : '#f9fafb';
+}
+
+// ─── Auto-void: balance path thicknesses ─────────────────────────────────────
+// Returns a new array of paths with resolvedLayers — does NOT mutate state.
+
+function resolvePathThicknesses(paths) {
+  const thicknesses = paths.map(p =>
+    p.layers.reduce((s, l) => s + l.thicknessMm, 0)
+  );
+  const maxT = Math.max(...thicknesses, 0);
+
+  return paths.map((path, i) => {
+    const gap = maxT - thicknesses[i];
+    if (gap === 0) return { ...path, resolvedLayers: path.layers, autoVoidMm: 0 };
+
+    const layers = path.layers.map(l => ({ ...l }));
+    const last = layers[layers.length - 1];
+
+    if (last && getMaterial(last.materialId).isVoid) {
+      // Expand existing trailing void
+      layers[layers.length - 1] = { ...last, thicknessMm: last.thicknessMm + gap };
+      return { ...path, resolvedLayers: layers, autoVoidMm: gap, expandedVoid: true };
+    } else {
+      // Append a new auto void
+      layers.push({ id: 'auto-' + uid(), materialId: 'void', thicknessMm: gap, isAuto: true });
+      return { ...path, resolvedLayers: layers, autoVoidMm: gap, expandedVoid: false };
+    }
+  });
+}
+
+// ─── Calculation ──────────────────────────────────────────────────────────────
+
+function calcStructure() {
+  const { rsi, rse, layers } = state.structure;
+  let totalR = rsi + rse;
+  const breakdown = [];
+
+  for (const layer of layers) {
+    if (layer.type === 'simple') {
+      const R = layerR(layer.materialId, layer.thicknessMm);
+      totalR += R;
+      const mat = getMaterial(layer.materialId);
+      breakdown.push({
+        label: mat.name + ' (' + layer.thicknessMm + 'mm)',
+        R,
+        isVoid: mat.isVoid
+      });
+    } else {
+      // Bridged: parallel path method (upper-limit / area-weighted U)
+      const resolved = resolvePathThicknesses(layer.paths);
+      const totalWidth = resolved.reduce((s, p) => s + p.widthMm, 0);
+      if (totalWidth === 0) continue;
+
+      let U_bridged = 0;
+      for (const rpath of resolved) {
+        const R_path = rpath.resolvedLayers.reduce(
+          (s, l) => s + layerR(l.materialId, l.thicknessMm), 0
+        );
+        if (R_path > 0) U_bridged += (rpath.widthMm / totalWidth) / R_path;
+      }
+      const R_bridged = U_bridged > 0 ? 1 / U_bridged : 0;
+      totalR += R_bridged;
+      breakdown.push({
+        label: 'Bridged (' + resolved.map(p => p.widthMm + 'mm').join(' / ') + ')',
+        R: R_bridged,
+        isBridged: true
+      });
+    }
+  }
+
+  const U = totalR > 0 ? 1 / totalR : null;
+  return { U, totalR, rsi, rse, breakdown };
+}
+
+// ─── Render: material list ────────────────────────────────────────────────────
+
+function renderMaterials() {
+  const list = document.getElementById('material-list');
+  list.innerHTML = allMaterials().map(m => `
+    <div class="material-item">
+      <div class="material-swatch" style="background:${m.color}"></div>
+      <span>${m.name}</span>
+      ${m.isVoid
+        ? '<span class="material-k">R≈0.18</span>'
+        : `<span class="material-k">${m.conductivity.toFixed(3)}</span>`}
+      ${m.isCustom
+        ? `<button class="btn-danger" title="Remove" onclick="removeCustomMaterial('${m.id}')">×</button>`
+        : ''}
+    </div>
+  `).join('');
+}
+
+function materialOptions(selectedId) {
+  return allMaterials().map(m =>
+    `<option value="${m.id}"${m.id === selectedId ? ' selected' : ''}>${m.name}</option>`
+  ).join('');
+}
+
+// ─── Render: layer stack ──────────────────────────────────────────────────────
+
+function renderLayers() {
+  const list = document.getElementById('layer-list');
+  const layers = state.structure.layers;
+
+  if (layers.length === 0) {
+    list.innerHTML = `<div class="empty-state">No layers yet.<br>Add a simple or bridged layer below.</div>`;
+    return;
+  }
+
+  list.innerHTML = layers.map((layer, li) => {
+    const notFirst = li > 0;
+    const notLast  = li < layers.length - 1;
+    const movebtns = `
+      <button class="btn-icon" title="Move up"   onclick="moveLayer(${li},-1)" ${notFirst ? '' : 'disabled'}>↑</button>
+      <button class="btn-icon" title="Move down" onclick="moveLayer(${li}, 1)" ${notLast  ? '' : 'disabled'}>↓</button>
+    `;
+
+    if (layer.type === 'simple') {
+      const mat = getMaterial(layer.materialId);
+      const R   = layerR(layer.materialId, layer.thicknessMm);
+      const isVoid = mat.isVoid;
+      return `
+        <div class="layer-card" data-li="${li}">
+          <div class="layer-header">
+            ${movebtns}
+            <span class="layer-type-badge">Simple</span>
+            <div class="material-swatch" style="background:${mat.color}"></div>
+            <span style="flex:1;font-size:12px">${mat.name}</span>
+            <span class="layer-r">R = ${R.toFixed(3)}</span>
+            <button class="btn-danger" title="Remove layer" onclick="removeLayer(${li})">×</button>
+          </div>
+          <div class="layer-body">
+            <div class="simple-layer-row">
+              <select onchange="updateSimpleLayerMaterial(${li},this.value)">${materialOptions(layer.materialId)}</select>
+              <div class="thickness-group">
+                <input type="number" min="1" value="${layer.thicknessMm}"
+                  ${isVoid ? 'style="color:#9ca3af"' : ''}
+                  onchange="updateSimpleLayerThickness(${li},this.value)">
+                <span>mm</span>
+              </div>
+            </div>
+            ${isVoid ? '<div style="font-size:11px;color:#9ca3af;margin-top:4px">Air gap uses fixed R = 0.18 m²K/W regardless of thickness.</div>' : ''}
+          </div>
+        </div>
+      `;
+    } else {
+      // Bridged layer
+      const resolved   = resolvePathThicknesses(layer.paths);
+      const hasAutoVoid = resolved.some(p => p.autoVoidMm > 0);
+      const totalRepeat = resolved.reduce((s, p) => s + p.widthMm, 0);
+
+      const pathCols = resolved.map((rpath, pi) => {
+        const path = layer.paths[pi];
+        return `
+          <div class="path-column">
+            <div class="path-header">
+              <input class="path-width-input" type="number" min="1" value="${path.widthMm}"
+                onchange="updatePathWidth(${li},${pi},this.value)">
+              <span style="color:#9ca3af">mm</span>
+              <button class="btn-danger" style="margin-left:auto;font-size:13px"
+                title="Remove path" onclick="removePath(${li},${pi})">×</button>
+            </div>
+            <div class="path-layers">
+              ${rpath.resolvedLayers.map((l, sli) => {
+                const isAuto = !!l.isAuto;
+                const mat = getMaterial(l.materialId);
+                return `
+                  <div class="path-layer-row">
+                    <div class="material-swatch" style="background:${mat.color};width:8px;height:8px;border-radius:1px;flex-shrink:0"></div>
+                    <select ${isAuto ? 'disabled' : `onchange="updateSubLayerMaterial(${li},${pi},${sli},this.value)"`}
+                      style="${isAuto ? 'opacity:0.5' : ''}">${materialOptions(l.materialId)}</select>
+                    <input type="number" min="1" value="${l.thicknessMm}"
+                      ${isAuto ? 'disabled style="opacity:0.5"' : `onchange="updateSubLayerThickness(${li},${pi},${sli},this.value)"`}>
+                    ${isAuto
+                      ? '<span class="auto-badge" title="Auto-added to balance layer thickness">auto</span>'
+                      : `<button class="btn-danger" style="font-size:13px" onclick="removeSubLayer(${li},${pi},${sli})">×</button>`}
+                  </div>
+                `;
+              }).join('')}
+              <button class="btn btn-secondary" style="width:100%;font-size:11px;padding:3px 0;margin-top:3px"
+                onclick="addSubLayer(${li},${pi})">+ layer</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="layer-card bridged" data-li="${li}">
+          <div class="layer-header bridged-header">
+            ${movebtns}
+            <span class="layer-type-badge bridged">Bridged</span>
+            <span style="flex:1;font-size:11px;color:#4b5563;margin-left:2px">
+              ${resolved.map(p => p.widthMm + 'mm').join(' + ')} = ${totalRepeat}mm repeat
+            </span>
+            <button class="btn-danger" title="Remove layer" onclick="removeLayer(${li})">×</button>
+          </div>
+          <div class="layer-body">
+            ${hasAutoVoid ? '<div class="warning-msg">Path thicknesses differ — void(s) auto-added to balance.</div>' : ''}
+            <div class="paths-container">
+              ${pathCols}
+              <div class="add-path-col">
+                <button class="btn btn-secondary" style="font-size:11px;padding:4px 8px;white-space:nowrap"
+                  onclick="addPath(${li})">+ path</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }).join('');
+}
+
+// ─── Render: U-value + breakdown ─────────────────────────────────────────────
+
+function renderUValue() {
+  const display = document.getElementById('u-value-display');
+  const breakdown = document.getElementById('r-breakdown');
+  const { U, totalR, rsi, rse, breakdown: rows } = calcStructure();
+
+  if (U === null || !isFinite(U) || isNaN(U)) {
+    display.textContent = 'U = —';
+    display.className = '';
+    breakdown.innerHTML = '';
+    return;
+  }
+
+  display.textContent = 'U = ' + U.toFixed(3) + ' W/m²K';
+  display.className = U <= 0.18 ? 'good' : U <= 0.35 ? 'ok' : 'poor';
+
+  const allRows = [
+    { label: 'R<sub>se</sub> (outside surface)', R: rse },
+    ...rows.map(r => ({ label: r.label, R: r.R })),
+    { label: 'R<sub>si</sub> (inside surface)', R: rsi },
+  ];
+
+  breakdown.innerHTML = `
+    <div class="r-breakdown-title">R-value Breakdown</div>
+    ${allRows.map(r => `
+      <div class="r-row">
+        <span>${r.label}</span>
+        <span>${r.R.toFixed(3)}</span>
+      </div>
+    `).join('')}
+    <div class="r-row total">
+      <span>R<sub>total</sub></span><span>${totalR.toFixed(3)} m²K/W</span>
+    </div>
+    <div class="r-row total">
+      <span>U-value</span><span>${U.toFixed(3)} W/m²K</span>
+    </div>
+  `;
+}
+
+// ─── Render: SVG cross-section ────────────────────────────────────────────────
+
+function renderSection() {
+  const svg       = document.getElementById('section-svg');
+  const container = document.getElementById('section-svg-container');
+  const W         = Math.max(container.clientWidth - 4, 100);
+  const drawW     = W - 4;
+  const layers    = state.structure.layers;
+
+  if (layers.length === 0) {
+    svg.innerHTML = `<text x="50%" y="50" text-anchor="middle" fill="#9ca3af" font-size="12">No layers</text>`;
+    svg.setAttribute('viewBox', `0 0 ${W} 100`);
+    svg.setAttribute('height', '100');
+    return;
+  }
+
+  // Determine total mm depth for scaling
+  function layerMaxMm(layer) {
+    if (layer.type === 'simple') return layer.thicknessMm;
+    return Math.max(...layer.paths.map(p =>
+      p.layers.reduce((s, l) => s + l.thicknessMm, 0)
+    ));
+  }
+
+  const totalMm  = layers.reduce((s, l) => s + layerMaxMm(l), 0);
+  if (totalMm === 0) return;
+
+  const svgH     = Math.max(160, Math.min(500, Math.round(drawW * 0.85)));
+  const scale    = svgH / totalMm;   // px per mm
+  const LABEL_H  = 18;
+  const rects    = [];
+  let y          = LABEL_H;
+
+  for (const layer of layers) {
+    const lhPx = layerMaxMm(layer) * scale;
+
+    if (layer.type === 'simple') {
+      const mat   = getMaterial(layer.materialId);
+      const label = lhPx > 22
+        ? mat.name + '  ' + layer.thicknessMm + 'mm'
+        : lhPx > 11
+          ? layer.thicknessMm + 'mm'
+          : '';
+      const fs = Math.min(11, lhPx * 0.55).toFixed(1);
+      rects.push(`
+        <rect x="2" y="${y.toFixed(1)}" width="${drawW}" height="${lhPx.toFixed(1)}"
+          fill="${mat.color}" stroke="#fff" stroke-width="0.8"/>
+        <text x="${(drawW / 2 + 2).toFixed(1)}" y="${(y + lhPx / 2).toFixed(1)}"
+          text-anchor="middle" dominant-baseline="middle"
+          font-size="${fs}" fill="${textColor(mat.color)}" style="pointer-events:none">${label}</text>
+      `);
+    } else {
+      // Bridged: paths side by side
+      const resolved  = resolvePathThicknesses(layer.paths);
+      const totalW_mm = resolved.reduce((s, p) => s + p.widthMm, 0);
+      let x = 2;
+
+      for (const rpath of resolved) {
+        const pwPx = (rpath.widthMm / totalW_mm) * drawW;
+        let py = y;
+
+        for (const l of rpath.resolvedLayers) {
+          const mat   = getMaterial(l.materialId);
+          const lh2   = l.thicknessMm * scale;
+          const label = lh2 > 11 && pwPx > 24 ? l.thicknessMm + 'mm' : '';
+          const fs    = Math.min(10, lh2 * 0.55).toFixed(1);
+          rects.push(`
+            <rect x="${x.toFixed(1)}" y="${py.toFixed(1)}"
+              width="${Math.max(0, pwPx - 0.5).toFixed(1)}" height="${lh2.toFixed(1)}"
+              fill="${mat.color}" stroke="#fff" stroke-width="0.8"
+              opacity="${l.isAuto ? '0.55' : '1'}"/>
+            <text x="${(x + pwPx / 2).toFixed(1)}" y="${(py + lh2 / 2).toFixed(1)}"
+              text-anchor="middle" dominant-baseline="middle"
+              font-size="${fs}" fill="${textColor(mat.color)}" style="pointer-events:none">${label}</text>
+          `);
+          py += lh2;
+        }
+        x += pwPx;
+      }
+    }
+    y += lhPx;
+  }
+
+  const totalSvgH = y + LABEL_H + 4;
+  const labelX    = (drawW / 2 + 2).toFixed(1);
+
+  svg.innerHTML = `
+    <text x="${labelX}" y="${(LABEL_H - 4)}" text-anchor="middle" font-size="10" fill="#9ca3af" font-style="italic">OUTSIDE</text>
+    ${rects.join('')}
+    <text x="${labelX}" y="${(y + LABEL_H - 2).toFixed(1)}" text-anchor="middle" font-size="10" fill="#9ca3af" font-style="italic">INSIDE</text>
+  `;
+  svg.setAttribute('viewBox', `0 0 ${W} ${totalSvgH.toFixed(0)}`);
+  svg.setAttribute('height', totalSvgH.toFixed(0));
+}
+
+// ─── State mutations ──────────────────────────────────────────────────────────
+
+function addSimpleLayer() {
+  state.structure.layers.push({
+    id: uid(), type: 'simple',
+    materialId: BUILT_IN_MATERIALS[0].id,
+    thicknessMm: 100
+  });
+  render();
+}
+
+function addBridgedLayer() {
+  state.structure.layers.push({
+    id: uid(), type: 'bridged',
+    paths: [
+      { id: uid(), widthMm: 50,  layers: [{ id: uid(), materialId: 'timber', thicknessMm: 150 }] },
+      { id: uid(), widthMm: 600, layers: [{ id: uid(), materialId: BUILT_IN_MATERIALS[0].id, thicknessMm: 150 }] },
+    ]
+  });
+  render();
+}
+
+function removeLayer(li) {
+  state.structure.layers.splice(li, 1);
+  render();
+}
+
+function moveLayer(li, dir) {
+  const ls = state.structure.layers;
+  const t  = li + dir;
+  if (t < 0 || t >= ls.length) return;
+  [ls[li], ls[t]] = [ls[t], ls[li]];
+  render();
+}
+
+function updateSimpleLayerMaterial(li, matId) {
+  state.structure.layers[li].materialId = matId;
+  render();
+}
+
+function updateSimpleLayerThickness(li, val) {
+  const t = parseFloat(val);
+  if (t > 0) state.structure.layers[li].thicknessMm = t;
+  render();
+}
+
+function addPath(li) {
+  state.structure.layers[li].paths.push({
+    id: uid(), widthMm: 100,
+    layers: [{ id: uid(), materialId: BUILT_IN_MATERIALS[0].id, thicknessMm: 100 }]
+  });
+  render();
+}
+
+function removePath(li, pi) {
+  const paths = state.structure.layers[li].paths;
+  if (paths.length <= 1) return; // need at least one path
+  paths.splice(pi, 1);
+  render();
+}
+
+function updatePathWidth(li, pi, val) {
+  const w = parseFloat(val);
+  if (w > 0) state.structure.layers[li].paths[pi].widthMm = w;
+  render();
+}
+
+function addSubLayer(li, pi) {
+  state.structure.layers[li].paths[pi].layers.push({
+    id: uid(), materialId: BUILT_IN_MATERIALS[0].id, thicknessMm: 50
+  });
+  render();
+}
+
+function removeSubLayer(li, pi, sli) {
+  const ls = state.structure.layers[li].paths[pi].layers;
+  if (ls.length <= 1) return; // keep at least one layer per path
+  ls.splice(sli, 1);
+  render();
+}
+
+function updateSubLayerMaterial(li, pi, sli, matId) {
+  state.structure.layers[li].paths[pi].layers[sli].materialId = matId;
+  render();
+}
+
+function updateSubLayerThickness(li, pi, sli, val) {
+  const t = parseFloat(val);
+  if (t > 0) state.structure.layers[li].paths[pi].layers[sli].thicknessMm = t;
+  render();
+}
+
+function addCustomMaterial() {
+  const nameEl  = document.getElementById('custom-name');
+  const kEl     = document.getElementById('custom-k');
+  const colorEl = document.getElementById('custom-color');
+
+  const name  = nameEl.value.trim();
+  const k     = parseFloat(kEl.value);
+  const color = colorEl.value;
+
+  if (!name)        { alert('Please enter a material name.'); return; }
+  if (isNaN(k) || k <= 0) { alert('Please enter a valid conductivity > 0.'); return; }
+  if (allMaterials().some(m => m.name.toLowerCase() === name.toLowerCase())) {
+    alert('A material with that name already exists.'); return;
+  }
+
+  state.customMaterials.push({ id: 'custom-' + uid(), name, conductivity: k, color, isCustom: true });
+  nameEl.value = '';
+  kEl.value    = '';
+  render();
+}
+
+function removeCustomMaterial(id) {
+  state.customMaterials = state.customMaterials.filter(m => m.id !== id);
+  // Replace any uses with the first built-in material
+  const fallback = BUILT_IN_MATERIALS[0].id;
+  function fix(matId) { return matId === id ? fallback : matId; }
+  for (const layer of state.structure.layers) {
+    if (layer.type === 'simple') {
+      layer.materialId = fix(layer.materialId);
+    } else {
+      for (const path of layer.paths)
+        for (const l of path.layers) l.materialId = fix(l.materialId);
+    }
+  }
+  render();
+}
+
+// ─── Import / Export ──────────────────────────────────────────────────────────
+
+function exportJSON() {
+  const data = { customMaterials: state.customMaterials, structure: state.structure };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = (state.structure.name || 'structure').replace(/\s+/g, '-').toLowerCase() + '.json';
+  a.click();
+}
+
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data.structure)       state.structure       = data.structure;
+      if (data.customMaterials) state.customMaterials = data.customMaterials;
+      document.getElementById('structure-name-input').value = state.structure.name || '';
+      document.getElementById('rsi-input').value = state.structure.rsi ?? 0.13;
+      document.getElementById('rse-input').value = state.structure.rse ?? 0.04;
+      render();
+    } catch {
+      alert('Could not parse JSON file — is it a valid U-value export?');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ─── Input event wiring ───────────────────────────────────────────────────────
+
+document.getElementById('rsi-input').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  if (!isNaN(v) && v >= 0) { state.structure.rsi = v; renderUValue(); }
+});
+
+document.getElementById('rse-input').addEventListener('input', e => {
+  const v = parseFloat(e.target.value);
+  if (!isNaN(v) && v >= 0) { state.structure.rse = v; renderUValue(); }
+});
+
+document.getElementById('structure-name-input').addEventListener('input', e => {
+  state.structure.name = e.target.value;
+});
+
+window.addEventListener('resize', renderSection);
+
+// ─── Main render ──────────────────────────────────────────────────────────────
+
+function render() {
+  renderMaterials();
+  renderLayers();
+  renderUValue();
+  renderSection();
+}
+
+render();
+</script>
+</body>
+</html>
